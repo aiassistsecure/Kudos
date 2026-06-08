@@ -460,10 +460,18 @@ export default function BlockDetail() {
   const seq = parseInt(params.seq || "0", 10);
 
   const { data: blockData, isLoading: isLoadingBlock } = useGetBlock(seq, {
-    query: { enabled: !!seq, queryKey: getGetBlockQueryKey(seq) },
+    query: {
+      enabled: !!seq,
+      queryKey: getGetBlockQueryKey(seq),
+      refetchInterval: (blockData?.block?.status === "open" && blockData?.block?.closesAt && new Date(blockData.block.closesAt).getTime() <= Date.now()) ? 5000 : false,
+    },
   });
   const { data: replies, isLoading: isLoadingReplies } = useListReplies(seq, {
-    query: { enabled: !!seq, queryKey: getListRepliesQueryKey(seq) },
+    query: {
+      enabled: !!seq,
+      queryKey: getListRepliesQueryKey(seq),
+      refetchInterval: (blockData?.block?.status === "open" && blockData?.block?.closesAt && new Date(blockData.block.closesAt).getTime() <= Date.now()) ? 5000 : false,
+    },
   });
 
   // Hook must be called unconditionally (Rules of Hooks)

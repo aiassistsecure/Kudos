@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useListBlocks, useGetSettings, useSubscribe, useListParticipants } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -11,13 +11,33 @@ import { useMinerIdentity } from "@/hooks/useMinerIdentity";
 import { formatItc } from "@/lib/utils";
 
 export default function Landing() {
-  const { data: blocks, isLoading, refetch: refetchBlocks } = useListBlocks();
   const { data: settings, refetch: refetchSettings } = useGetSettings();
+  const { data: blocks, isLoading, refetch: refetchBlocks } = useListBlocks(
+    undefined,
+    {
+      query: {
+        refetchInterval: (() => {
+          const open = blocks?.find((b) => b.status === "open" && (b.postMode !== "imported" || b.status === "open"));
+          if (!open || !open.opensAt) return false;
+          const interval = settings?.blockIntervalMinutes ?? 10;
+          return (new Date(open.opensAt).getTime() + (interval * 60_000)) <= Date.now();
+        })() ? 5000 : false,
+      }
+    }
+  );
   const { data: participants } = useListParticipants();
   const { toast } = useToast();
   const subscribe = useSubscribe();
   const [email, setEmail] = useState("");
   const { identity, loading: identityLoading, setXHandle, setWalletAddress, setEmail: setIdentityEmail, completeOnboarding } = useMinerIdentity();
+
+  // Refetch settings whenever the open block changes (e.g. sequence changes)
+  const openBlockSeq = blocks?.find((b) => b.status === "open" && (b.postMode !== "imported" || b.status === "open"))?.seq;
+  useEffect(() => {
+    if (openBlockSeq) {
+      void refetchSettings();
+    }
+  }, [openBlockSeq, refetchSettings]);
   // Local flag — only goes false when the user explicitly finishes onboarding
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const showOnboarding = !onboardingDismissed && !identityLoading && !!identity && !identity.onboardedAt;

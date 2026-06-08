@@ -176,9 +176,14 @@ export async function openBlockNow(block: Block, log?: Logger): Promise<Block> {
         log,
       ));
 
+    const opensAtStr = fresh.opensAt ?? new Date().toISOString();
+    const cfg = emissionConfig();
+    const closesAtStr = new Date(new Date(opensAtStr).getTime() + cfg.blockIntervalMs).toISOString();
+
     const patch: Partial<typeof blocksTable.$inferInsert> = {
       status: "open",
-      opensAt: fresh.opensAt ?? new Date().toISOString(),
+      opensAt: opensAtStr,
+      closesAt: closesAtStr,
       postContent: content,
     };
 
