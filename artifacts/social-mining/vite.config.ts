@@ -4,7 +4,13 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-const basePath = process.env.BASE_PATH || "/";
+const basePath = process.env.BASE_PATH;
+
+if (!basePath) {
+  throw new Error(
+    "BASE_PATH environment variable is required but was not provided.",
+  );
+}
 
 export default defineConfig(async ({ command }) => {
   // PORT is only needed to run the dev server. A static `vite build` (e.g. on a
@@ -13,11 +19,14 @@ export default defineConfig(async ({ command }) => {
   let port = 5173;
   if (command === "serve") {
     const rawPort = process.env.PORT;
-    if (rawPort) {
-      port = Number(rawPort);
-      if (Number.isNaN(port) || port <= 0) {
-        throw new Error(`Invalid PORT value: "${rawPort}"`);
-      }
+    if (!rawPort) {
+      throw new Error(
+        "PORT environment variable is required but was not provided.",
+      );
+    }
+    port = Number(rawPort);
+    if (Number.isNaN(port) || port <= 0) {
+      throw new Error(`Invalid PORT value: "${rawPort}"`);
     }
   }
 
@@ -60,12 +69,6 @@ export default defineConfig(async ({ command }) => {
       allowedHosts: true,
       fs: {
         strict: true,
-      },
-      proxy: {
-        "/api": {
-          target: process.env.API_PROXY_TARGET ?? "http://localhost:8080",
-          changeOrigin: true,
-        },
       },
     },
     preview: {

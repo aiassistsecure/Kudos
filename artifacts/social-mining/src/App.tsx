@@ -10,13 +10,12 @@ import Blocks from "@/pages/public/Blocks";
 import BlockDetail from "@/pages/public/BlockDetail";
 import Settlement from "@/pages/public/Settlement";
 import Participant from "@/pages/public/Participant";
-import Profile from "@/pages/public/Profile";
+import Wallet from "@/pages/public/Wallet";
 import Payouts from "@/pages/public/Payouts";
 import Projects from "@/pages/public/Projects";
 import ProjectDetail from "@/pages/public/ProjectDetail";
 import ProjectApply from "@/pages/public/ProjectApply";
-import Discover from "@/pages/public/Discover";
-import Inbox from "@/pages/public/Inbox";
+import Register from "@/pages/public/Register";
 
 // Console Pages
 import Dashboard from "@/pages/console/Dashboard";
@@ -25,8 +24,6 @@ import ReviewQueue from "@/pages/console/ReviewQueue";
 import ProjectApplications from "@/pages/console/ProjectApplications";
 import AbuseEvents from "@/pages/console/AbuseEvents";
 import AuditLog from "@/pages/console/AuditLog";
-import TopicPool from "@/pages/console/TopicPool";
-import XPostQueue from "@/pages/console/XPostQueue";
 
 import { Layout } from "@/components/layout/Layout";
 import { ConsoleLayout } from "@/components/layout/ConsoleLayout";
@@ -43,13 +40,12 @@ function PublicRouter() {
         <Route path="/blocks/:seq" component={BlockDetail} />
         <Route path="/blocks/:seq/settlement" component={Settlement} />
         <Route path="/participants/:handle" component={Participant} />
-        <Route path="/profile" component={Profile} />
+        <Route path="/wallet" component={Wallet} />
         <Route path="/payouts" component={Payouts} />
         <Route path="/projects" component={Projects} />
         <Route path="/projects/:id" component={ProjectDetail} />
         <Route path="/apply" component={ProjectApply} />
-        <Route path="/discover" component={Discover} />
-        <Route path="/inbox" component={Inbox} />
+        <Route path="/register" component={Register} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
@@ -63,11 +59,9 @@ function ConsoleRouter() {
         <Switch>
           <Route path="/console" component={Dashboard} />
           <Route path="/console/blocks" component={ManageBlocks} />
-          <Route path="/console/topics" component={TopicPool} />
           <Route path="/console/review" component={ReviewQueue} />
           <Route path="/console/projects" component={ProjectApplications} />
           <Route path="/console/abuse" component={AbuseEvents} />
-          <Route path="/console/x-queue" component={XPostQueue} />
           <Route path="/console/audit" component={AuditLog} />
           <Route component={NotFound} />
         </Switch>

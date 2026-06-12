@@ -12,8 +12,6 @@ import {
   setBlastEnabled,
   getReplySyncEnabled,
   setReplySyncEnabled,
-  getBlockGenSeed,
-  setBlockGenSeed,
 } from "../services/settings";
 import { emissionConfig } from "../services/config";
 import { computeBlockReward } from "../services/rewardModel";
@@ -30,7 +28,6 @@ async function buildSettings() {
   const rewardsEnabled = await getRewardsEnabled();
   const blastEnabled = await getBlastEnabled();
   const replySyncEnabled = await getReplySyncEnabled();
-  const blockGenSeed = await getBlockGenSeed();
   const reward = await computeBlockReward();
   return {
     autoPostEnabled,
@@ -38,10 +35,9 @@ async function buildSettings() {
     rewardsEnabled,
     blastEnabled,
     replySyncEnabled,
-    blockGenSeed: blockGenSeed ?? "",
-    dataSource: netrowsMode(),
-    postingMode: xPostMode(),
-    contentMode: aiasMode(),
+    dataSource: netrowsMode(), // "netrows" | "simulated"
+    postingMode: xPostMode(), // "api" | "simulated"
+    contentMode: aiasMode(), // "aiassist" | "simulated"
     blockIntervalMinutes: Math.round(emissionConfig().blockIntervalMs / 60_000),
     blockRewardItc: reward.rewardItc,
     governanceBlocks: reward.governanceBlocks,
@@ -100,15 +96,6 @@ router.put("/settings", requireAdmin, async (req, res) => {
       action: "settings.reply_sync_enabled",
       entity: "settings",
       detail: { replySyncEnabled: body.replySyncEnabled },
-    });
-  }
-  if (typeof body.blockGenSeed === "string") {
-    await setBlockGenSeed(body.blockGenSeed);
-    await recordAudit({
-      actor: "admin",
-      action: "settings.block_gen_seed",
-      entity: "settings",
-      detail: { blockGenSeed: body.blockGenSeed.slice(0, 80) },
     });
   }
   res.json(GetSettingsResponse.parse(await buildSettings()));

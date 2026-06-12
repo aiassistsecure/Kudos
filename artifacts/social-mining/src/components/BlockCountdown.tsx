@@ -73,8 +73,6 @@ export default function BlockCountdown({
   // Use the live block's solve time when it is still in the future; otherwise
   // roll forward to the next interval boundary so the countdown keeps ticking.
   const isLive = realTarget != null && realTarget > now;
-  const isSettling = opensAt != null && realTarget != null && now >= realTarget;
-
   const target = isLive
     ? (realTarget as number)
     : Math.ceil(now / periodMs) * periodMs;
@@ -83,20 +81,20 @@ export default function BlockCountdown({
   const totalSeconds = Math.floor(remainingMs / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  const progress = isSettling ? 100 : Math.min(100, Math.max(0, (1 - remainingMs / periodMs) * 100));
+  const progress = Math.min(100, Math.max(0, (1 - remainingMs / periodMs) * 100));
 
   return (
     <div className="w-full max-w-2xl border-4 border-foreground bg-card brutal-shadow">
       <div className="flex items-center justify-between gap-2 bg-foreground text-background px-4 py-2 font-mono text-xs md:text-sm font-bold uppercase tracking-wider">
-        <span>{paused ? "⏸️ Rewards Paused" : isSettling ? "⏳ Block Solving" : "⛏️ Next Block Solves In"}</span>
+        <span>{paused ? "⏸️ Rewards Paused" : "⛏️ Next Block Solves In"}</span>
         <span className="truncate">
-          {paused ? "Paused" : isLive ? `Block #${seq ?? "—"} · LIVE` : isSettling ? `Block #${seq ?? "—"} · SETTLING` : "Next Block"}
+          {paused ? "Paused" : isLive ? `Block #${seq ?? "—"} · LIVE` : "Next Block"}
         </span>
       </div>
 
       <div className="p-6 md:p-8 flex flex-col items-center gap-5">
         <div className="flex items-stretch gap-2 md:gap-4">
-          <TimeTile value={isSettling ? "--" : pad(minutes)} label="Min" frozen={paused} />
+          <TimeTile value={pad(minutes)} label="Min" frozen={paused} />
           <div
             className={`flex items-center text-5xl md:text-8xl font-black text-primary leading-none ${
               paused ? "opacity-40" : "animate-pulse"
@@ -104,15 +102,15 @@ export default function BlockCountdown({
           >
             :
           </div>
-          <TimeTile value={isSettling ? "--" : pad(seconds)} label="Sec" frozen={paused} />
+          <TimeTile value={pad(seconds)} label="Sec" frozen={paused} />
         </div>
 
         <div className="w-full h-4 border-4 border-foreground bg-background overflow-hidden">
           <div
             className={`h-full transition-all duration-1000 ease-linear ${
-              paused ? "bg-muted-foreground" : isSettling ? "bg-primary animate-pulse" : "bg-primary"
+              paused ? "bg-muted-foreground" : "bg-primary"
             }`}
-            style={{ width: `${paused || isSettling ? 100 : progress}%` }}
+            style={{ width: `${paused ? 100 : progress}%` }}
           />
         </div>
 
@@ -120,10 +118,6 @@ export default function BlockCountdown({
           {paused ? (
             <span className="text-foreground">
               Rewards are paused by the operator — mining is frozen
-            </span>
-          ) : isSettling ? (
-            <span className="text-foreground animate-pulse">
-              Block #{seq} solve time reached · Settling rewards...
             </span>
           ) : isLive && rewardItc != null ? (
             <>

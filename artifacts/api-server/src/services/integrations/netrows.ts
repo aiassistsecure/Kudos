@@ -92,7 +92,6 @@ export interface NetrowsUser {
   avatar: string;
   followers: number;
   following: number;
-  bio?: string;
 }
 
 export interface NetrowsReply {
@@ -134,7 +133,6 @@ export async function fetchUserInfo(
     avatar: avatarRaw ? upgradeAvatar(avatarRaw) : "",
     followers: Number(d.followers ?? 0) || 0,
     following: Number(d.following ?? 0) || 0,
-    bio: (d.description as string) || (d.bio as string) || "",
   };
 }
 
@@ -291,57 +289,3 @@ export async function fetchRecentUserPosts(
     text: t.text ?? "",
   }));
 }
-
-/**
- * Fetch the text of a single tweet by tweet ID + author username.
- *
- * NetRows has NO direct tweet-by-ID lookup. Instead we fetch the user's recent
- * tweets via `/x/users/tweets?username=` and match by `id` or `conversationId`.
- *
- * Returns null if NetRows is not configured, the user has no recent tweets, or
- * the tweet cannot be found in the recent list (too old / deleted).
- */
-export async function fetchTweetText(
-  tweetId: string,
-  username: string,
-  log?: Logger,
-): Promise<string | null> {
-  if (netrowsMode() !== "netrows") {
-    log?.debug("NetRows not configured; cannot fetch tweet text");
-    return null;
-  }
-
-  // Fetch user's recent tweets
-  const result = await getJson(`/x/users/tweets?username=${encodeURIComponent(username)}`, log);
-  if (!result || result.status !== 200) {
-    log?.warn({ tweetId, username, status: result?.status }, "NetRows: user tweets lookup failed");
-    return null;
-  }
-
-  const data = result.json as {
-    status?: string;
-    data?: { tweets?: Array<{ id?: string; conversationId?: string; text?: string }> };
-  };
-
-  if (data.status !== "success") {
-    log?.warn({ tweetId, username }, "NetRows: user tweets API returned non-success");
-    return null;
-  }
-
-  const tweets = data.data?.tweets ?? [];
-
-  // Match by exact tweet ID or conversationId
-  const match = tweets.find(
-    (t) => String(t.id ?? "") === String(tweetId) ||
-           String(t.conversationId ?? "") === String(tweetId),
-  );
-
-  if (!match?.text?.trim()) {
-    log?.warn({ tweetId, username, tweetCount: tweets.length }, "NetRows: tweet not found in user's recent tweets");
-    return null;
-  }
-
-  log?.debug({ tweetId, username, len: match.text.trim().length }, "NetRows: fetched tweet text");
-  return match.text.trim();
-}
-

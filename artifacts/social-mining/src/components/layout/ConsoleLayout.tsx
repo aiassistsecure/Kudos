@@ -29,18 +29,23 @@ export function ConsoleLayout({ children }: { children: React.ReactNode }) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location === "/console/topics"}>
-                    <Link href="/console/topics" className="uppercase font-bold tracking-tight text-lg">Topic Pool</Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={location === "/console/review"}>
                     <Link href="/console/review" className="uppercase font-bold tracking-tight text-lg">Review Queue</Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={location === "/console/x-queue"}>
-                    <Link href="/console/x-queue" className="uppercase font-bold tracking-tight text-lg">⚡ X Post Queue</Link>
+                  <SidebarMenuButton asChild isActive={location === "/console/projects"}>
+                    <Link href="/console/projects" className="uppercase font-bold tracking-tight text-lg">Projects</Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location === "/console/abuse"}>
+                    <Link href="/console/abuse" className="uppercase font-bold tracking-tight text-lg">Abuse Events</Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location === "/console/audit"}>
+                    <Link href="/console/audit" className="uppercase font-bold tracking-tight text-lg">Audit Log</Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>

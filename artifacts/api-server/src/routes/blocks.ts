@@ -32,7 +32,6 @@ import { scoringConfig } from "../services/config";
 import { openBlockNow } from "../services/scheduler";
 import { syncBlockReplies } from "../services/netrowsSync";
 import { generateBlockPost } from "../services/integrations/aias";
-import { getBlockGenSeed } from "../services/topicRotation";
 import { extractTweetId, extractUsername } from "../services/integrations/netrows";
 
 const router: IRouter = Router();
@@ -224,7 +223,6 @@ router.post("/blocks/:seq/generate-post", requireAdmin, async (req, res) => {
     res.status(404).json({ error: "Block not found" });
     return;
   }
-  const seed = await getBlockGenSeed();
   const content = await generateBlockPost(
     {
       seq: block.seq,
@@ -233,7 +231,6 @@ router.post("/blocks/:seq/generate-post", requireAdmin, async (req, res) => {
       requiredKeywords: block.requiredKeywords ?? [],
       bonusKeywords: block.bonusKeywords ?? [],
       sponsor: block.sponsor,
-      extraInstructions: seed && seed.length > 0 ? seed : undefined,
     },
     req.log,
   );

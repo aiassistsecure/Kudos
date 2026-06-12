@@ -6,8 +6,8 @@ export default function Blocks() {
 
   if (isLoading) return <div>Loading...</div>;
 
-  const mining = blocks?.filter((b) => b.postMode !== "imported" || b.status === "open") ?? [];
-  const imported = blocks?.filter((b) => b.postMode === "imported" && b.status !== "open") ?? [];
+  const mining = blocks?.filter((b) => b.postMode !== "imported") ?? [];
+  const imported = blocks?.filter((b) => b.postMode === "imported") ?? [];
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-500">
@@ -23,7 +23,7 @@ export default function Blocks() {
                   <span className="text-primary">{block.status}</span>
                 </div>
                 <h2 className="text-xl md:text-2xl font-black uppercase break-words">{block.title}</h2>
-                <p className="text-muted-foreground line-clamp-1">{block.topic}</p>
+                <p className="text-muted-foreground break-words">{block.topic}</p>
               </div>
               <div className="flex shrink-0 flex-row items-baseline gap-2 md:flex-col md:items-end md:gap-0 md:text-right">
                 <div className="text-2xl md:text-3xl font-black text-primary break-words">{block.rewardItc} ITC</div>
@@ -46,14 +46,14 @@ export default function Blocks() {
           <div className="grid gap-4">
             {imported.map((block) => (
               <Link key={block.id} href={`/blocks/${block.seq}`} className="block">
-                <div className="border-4 border-foreground bg-muted/30 p-4 brutal-shadow flex items-center justify-between gap-4 hover:bg-secondary/10 transition-colors">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="bg-foreground text-background px-2 py-1 font-mono text-xs font-bold">#{block.seq}</span>
-                    <span className="font-bold truncate">{block.title}</span>
+                <div className="border-4 border-foreground bg-muted/30 p-4 brutal-shadow flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 hover:bg-secondary/10 transition-colors">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <span className="bg-foreground text-background px-2 py-1 font-mono text-xs font-bold shrink-0">#{block.seq}</span>
+                    <span className="font-bold break-words">{block.title}</span>
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <span className="font-mono text-sm font-black text-primary">{block.rewardItc} ITC</span>
-                    <span className="font-mono text-xs uppercase border-2 border-foreground px-2 py-1 bg-card">{block.status}</span>
+                  <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
+                    <span className="font-mono text-sm font-black text-primary break-words">{block.rewardItc} ITC</span>
+                    <span className="font-mono text-xs uppercase border-2 border-foreground px-2 py-1 bg-card shrink-0">{block.status}</span>
                   </div>
                 </div>
               </Link>

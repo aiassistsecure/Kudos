@@ -1,6 +1,5 @@
 import { eq } from "drizzle-orm";
 import { db, appSettingsTable } from "@workspace/db";
-export { getBlockGenSeed, setBlockGenSeed } from "./topicRotation";
 
 /**
  * Runtime, operator-tunable settings persisted in the app_settings table.

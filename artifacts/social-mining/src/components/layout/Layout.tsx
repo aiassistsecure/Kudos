@@ -5,11 +5,14 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetClose } from "@/com
 
 const NAV_LINKS = [
   { href: "/blocks", label: "Blocks" },
-  { href: "/discover", label: "Discover" },
   { href: "/projects", label: "Projects" },
-  { href: "/inbox", label: "🔒 Inbox" },
+  { href: "/wallet", label: "Claim" },
   { href: "/payouts", label: "Payouts" },
-  { href: "/profile", label: "⛏ Profile" },
+];
+
+const CTA_LINKS = [
+  { href: "/register", label: "Register" },
+  { href: "/console", label: "Console" },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -25,6 +28,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <nav className="hidden md:flex gap-6 font-bold uppercase tracking-tight">
             {NAV_LINKS.map((l) => (
               <Link key={l.href} href={l.href} className="hover:text-secondary hover:underline underline-offset-4">{l.label}</Link>
+            ))}
+            {CTA_LINKS.map((l) => (
+              <Link key={l.href} href={l.href} className="bg-foreground text-primary px-3 py-1 brutal-shadow hover:bg-secondary hover:text-foreground">{l.label}</Link>
             ))}
           </nav>
           <Sheet open={open} onOpenChange={setOpen}>
@@ -44,6 +50,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <Link href={l.href} className="text-lg hover:text-secondary hover:underline underline-offset-4">{l.label}</Link>
                   </SheetClose>
                 ))}
+                {CTA_LINKS.map((l) => (
+                  <SheetClose asChild key={l.href}>
+                    <Link href={l.href} className="bg-foreground text-primary px-3 py-2 text-center brutal-shadow hover:bg-secondary hover:text-foreground">{l.label}</Link>
+                  </SheetClose>
+                ))}
               </nav>
             </SheetContent>
           </Sheet>
@@ -52,32 +63,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 container mx-auto p-4 md:p-8">
         {children}
       </main>
-      <footer className="border-t-4 border-foreground bg-card text-card-foreground">
-        <div className="container mx-auto py-8 space-y-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-sm font-mono uppercase font-bold text-muted-foreground">
-            <span>Kudos · Interchained Social Mining</span>
-            <span>Extroverted Hashpower</span>
-          </div>
-          <div className="border-t-2 border-foreground/10 pt-6">
-            <pre className="font-mono text-[9px] md:text-[10px] leading-tight text-muted-foreground/60 text-center select-none whitespace-pre">{`
-    ╔══════════════════════════════════════════════╗
-    ║           ⛏️  KUDOS SOCIAL MINING  ⛏️          ║
-    ║                                              ║
-    ║   Built by Mark — @interchained              ║
-    ║   Pair-programmed with Antigravity AI        ║
-    ║                                              ║
-    ║   ██╗████████╗ ██████╗                       ║
-    ║   ██║╚══██╔══╝██╔════╝                       ║
-    ║   ██║   ██║   ██║                            ║
-    ║   ██║   ██║   ██║                            ║
-    ║   ██║   ██║   ╚██████╗                       ║
-    ║   ╚═╝   ╚═╝    ╚═════╝                       ║
-    ║                                              ║
-    ║   "Mine signal, not noise."                  ║
-    ║                                              ║
-    ╚══════════════════════════════════════════════╝
-`}</pre>
-          </div>
+      <footer className="border-t-4 border-foreground p-8 bg-card text-card-foreground">
+        <div className="container mx-auto text-sm font-mono uppercase font-bold text-muted-foreground flex justify-between">
+          <span>Kudos · Interchained Social Mining</span>
+          <span>Inverted Hashpower Model</span>
         </div>
       </footer>
     </div>

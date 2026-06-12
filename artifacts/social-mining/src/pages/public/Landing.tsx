@@ -1,46 +1,18 @@
-import { useState, useEffect } from "react";
-import { useListBlocks, useGetSettings, useSubscribe, useListParticipants } from "@workspace/api-client-react";
+import { useState } from "react";
+import { useListBlocks, useGetSettings, useSubscribe } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import BlockCountdown from "@/components/BlockCountdown";
-import Hashpit from "@/components/Hashpit";
-import { OnboardingModal } from "@/components/OnboardingModal";
-import { useMinerIdentity } from "@/hooks/useMinerIdentity";
 import { formatItc } from "@/lib/utils";
 
 export default function Landing() {
+  const { data: blocks, isLoading, refetch: refetchBlocks } = useListBlocks();
   const { data: settings, refetch: refetchSettings } = useGetSettings();
-  const { data: blocks, isLoading, refetch: refetchBlocks } = useListBlocks(
-    undefined,
-    {
-      query: {
-        refetchInterval: (() => {
-          const open = blocks?.find((b) => b.status === "open" && (b.postMode !== "imported" || b.status === "open"));
-          if (!open || !open.opensAt) return false;
-          const interval = settings?.blockIntervalMinutes ?? 10;
-          return (new Date(open.opensAt).getTime() + (interval * 60_000)) <= Date.now();
-        })() ? 5000 : false,
-      }
-    }
-  );
-  const { data: participants } = useListParticipants();
   const { toast } = useToast();
   const subscribe = useSubscribe();
   const [email, setEmail] = useState("");
-  const { identity, loading: identityLoading, setXHandle, setWalletAddress, setEmail: setIdentityEmail, completeOnboarding } = useMinerIdentity();
-
-  // Refetch settings whenever the open block changes (e.g. sequence changes)
-  const openBlockSeq = blocks?.find((b) => b.status === "open" && (b.postMode !== "imported" || b.status === "open"))?.seq;
-  useEffect(() => {
-    if (openBlockSeq) {
-      void refetchSettings();
-    }
-  }, [openBlockSeq, refetchSettings]);
-  // Local flag — only goes false when the user explicitly finishes onboarding
-  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
-  const showOnboarding = !onboardingDismissed && !identityLoading && !!identity && !identity.onboardedAt;
 
   const handleSubscribe = () => {
     if (!email.trim()) return;
@@ -67,31 +39,20 @@ export default function Landing() {
   const govSharePct = settings?.governanceSharePct;
   const govSum = settings?.governanceRewardSumItc;
   const rewardLive = settings?.rewardSourceLive;
-  // Imported genesis/recent posts also carry status "open" and are mineable,
-  // so we include them in the mineable list as long as they are still open.
-  const mineable = blocks?.filter((b) => b.postMode !== "imported" || b.status === "open") ?? [];
+  // Imported genesis posts also carry status "open" and (on re-import) the
+  // highest seq numbers, so an unfiltered list surfaces them ahead of real
+  // mining blocks. Only postMode !== "imported" blocks are mineable.
+  const mineable = blocks?.filter((b) => b.postMode !== "imported") ?? [];
   const openBlock = mineable.find((b) => b.status === "open");
-
-  // Top miners by trust score (proxy for best miners until we have global HP endpoint)
-  const topMiners = (participants ?? []).slice(0, 6);
+  // Every block currently accepting replies — imported genesis posts can be
+  // open too, so this is the full live set, surfaced in the marquee below.
+  const openBlocks = (blocks ?? []).filter((b) => b.status === "open");
 
   return (
     <div className="space-y-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
-      {/* Onboarding Modal */}
-      {identity && (
-        <OnboardingModal
-          open={showOnboarding}
-          identity={identity}
-          onSetHandle={setXHandle}
-          onSetWallet={setWalletAddress}
-          onSetEmail={setIdentityEmail}
-          onComplete={() => { completeOnboarding(); setOnboardingDismissed(true); }}
-        />
-      )}
-
       <section className="py-20 md:py-32 flex flex-col items-center text-center space-y-8">
         <h1 className="text-5xl md:text-8xl font-black tracking-tighter uppercase leading-[0.9]">
-          <span className="bg-primary text-primary-foreground px-4 py-2 brutal-shadow block mb-4">Extroverted</span>
+          <span className="bg-primary text-primary-foreground px-4 py-2 brutal-shadow block mb-4">Inverted</span>
           <span className="text-foreground">Hashpower</span>
         </h1>
         <p className="text-xl md:text-2xl max-w-2xl font-mono bg-secondary text-secondary-foreground p-4 brutal-shadow border-4 border-foreground">
@@ -110,15 +71,56 @@ export default function Landing() {
             void refetchSettings();
           }}
         />
-        <div className="flex gap-4">
-          <Button asChild size="lg" className="brutal-shadow text-lg border-4 border-foreground h-16 px-8 rounded-none">
+        <div className="flex flex-col gap-4 sm:flex-row">
+          <Button asChild size="lg" className="brutal-shadow text-lg border-4 border-foreground h-16 px-8 rounded-none w-full sm:w-auto">
             <Link href="/blocks">View Mining Blocks</Link>
           </Button>
-          <Button asChild variant="outline" size="lg" className="brutal-shadow text-lg border-4 border-foreground h-16 px-8 rounded-none">
+          <Button asChild variant="outline" size="lg" className="brutal-shadow text-lg border-4 border-foreground h-16 px-8 rounded-none w-full sm:w-auto">
             <Link href="/wallet">Bind Wallet</Link>
           </Button>
         </div>
       </section>
+
+      {openBlocks.length > 0 && (
+        <section className="space-y-5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b-4 border-foreground pb-4">
+            <span className="pulse-glow inline-block h-3 w-3 shrink-0 bg-primary" />
+            <h2 className="text-2xl md:text-3xl font-black uppercase">
+              Open Blocks · Live
+            </h2>
+            <span className="font-mono text-xs sm:text-sm font-bold text-muted-foreground">
+              {openBlocks.length} accepting replies
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            {openBlocks.map((block) => (
+              <Link
+                key={block.id}
+                href={`/blocks/${block.seq}`}
+                className="block"
+                data-testid={`open-block-${block.seq}`}
+              >
+                <div className="flex h-full flex-col gap-3 border-4 border-foreground bg-card p-4 brutal-shadow">
+                  <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-xs font-bold uppercase">
+                    <span className="bg-foreground px-2 py-1 text-background">
+                      #{block.seq}
+                    </span>
+                    <span className="border-2 border-foreground bg-secondary px-2 py-1 text-secondary-foreground">
+                      {block.status}
+                    </span>
+                  </div>
+                  <h3 className="flex-1 text-lg font-black uppercase leading-tight break-words">
+                    {block.title}
+                  </h3>
+                  <div className="border-2 border-foreground bg-primary px-2 py-2 text-center font-mono text-sm font-bold text-primary-foreground break-words">
+                    {block.rewardItc} ITC
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="space-y-8">
         <h2 className="text-3xl font-black uppercase border-b-4 border-foreground pb-4">Latest Mining Blocks</h2>
@@ -146,36 +148,6 @@ export default function Landing() {
           </div>
         )}
       </section>
-
-      {/* ── Top Miners ── */}
-      {topMiners.length > 0 && (
-        <section className="space-y-6">
-          <div className="flex items-center justify-between border-b-4 border-foreground pb-2">
-            <h2 className="text-3xl font-black uppercase">Top Miners</h2>
-            <Link href="/blocks" className="font-mono text-sm font-bold text-muted-foreground hover:text-primary transition-colors">
-              View all blocks →
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {topMiners.map((miner) => (
-              <Link key={miner.id} href={`/participants/${miner.xHandle}`}>
-                <div className="border-4 border-foreground bg-card brutal-shadow p-4 flex flex-col items-center gap-3 text-center hover:-translate-y-2 transition-transform cursor-pointer h-full">
-                  <div className="w-14 h-14 border-4 border-foreground bg-primary/10 flex items-center justify-center text-2xl font-black">
-                    {miner.xHandle[0]?.toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="font-bold text-sm truncate max-w-[90px]">@{miner.xHandle}</div>
-                    <div className="font-mono text-[10px] text-muted-foreground uppercase">PoH {miner.pohTier}</div>
-                  </div>
-                  <div className="mt-auto border-2 border-primary/50 bg-primary/10 px-2 py-0.5 font-mono text-xs font-bold text-primary">
-                    {miner.verified ? "✓ Verified" : `${miner.followersCount.toLocaleString()} Followers`}
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
 
       {blockReward != null && (
         <section className="space-y-8">
@@ -207,15 +179,6 @@ export default function Landing() {
           </div>
         </section>
       )}
-
-      {/* ── The Lobby — global Hashpit ── */}
-      <section className="space-y-4">
-        <div className="flex items-center gap-3">
-          <h2 className="text-3xl font-black uppercase tracking-tighter">⛏ The Lobby</h2>
-          <span className="font-mono text-xs text-muted-foreground border-2 border-foreground/20 px-2 py-0.5">Live</span>
-        </div>
-        <Hashpit channel="lobby" title="The Lobby" />
-      </section>
 
       <section className="space-y-6">
         <div className="border-4 border-foreground bg-card p-8 brutal-shadow space-y-4">

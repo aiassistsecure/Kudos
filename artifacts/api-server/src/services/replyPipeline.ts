@@ -23,10 +23,6 @@ import { scoreReply } from "./integrations/aias";
 import { lookupUser } from "./integrations/x";
 import { scoringConfig } from "./config";
 import { recordAudit } from "./audit";
-import { enrichParticipant } from "./profileEnrich";
-import { hashpitBus } from "./hashpitBus";
-import { randomUUID } from "node:crypto";
-import { hashpitMessagesTable } from "@workspace/db";
 
 export interface ReplyInputOverrides {
   followersCount?: number;
@@ -82,11 +78,7 @@ export async function upsertParticipant(
       pohTier: 0,
     })
     .returning();
-  const p = inserted[0];
-  // Fire-and-forget: pull X avatar + generate Kudos bio for new miners.
-  // Safe to ignore errors — profile enrichment is best-effort.
-  enrichParticipant(p.id, clean, 0, 0, log).catch(() => {});
-  return p;
+  return inserted[0];
 }
 
 export class DuplicateReplyError extends Error {
@@ -123,38 +115,20 @@ export interface PipelineResult {
  */
 export async function ingestAndScoreReply(
   block: Block,
-  input: {
-    handle: string;
-    replyText: string;
-    xReplyId?: string;
-    /** SHA-256 mining key hash — used for one-submission-per-block enforcement. */
-    miningKeyHash?: string;
-  } & ReplyInputOverrides,
+  input: { handle: string; replyText: string; xReplyId?: string } & ReplyInputOverrides,
   log?: Logger,
 ): Promise<PipelineResult | null> {
   const cfg = scoringConfig();
 
   // Immutable scores: a comment id is scored exactly once, ever. If we've
   // already ingested this X reply, skip silently — never re-score it.
-  // EXCEPTION: if the prior reply was rejected, allow the miner to re-submit
-  // so they get a fair shot with the corrected pipeline.
   if (input.xReplyId) {
     const seen = await db
-      .select({ id: repliesTable.id, status: repliesTable.status })
+      .select({ id: repliesTable.id })
       .from(repliesTable)
       .where(eq(repliesTable.xReplyId, input.xReplyId))
       .limit(1);
-    if (seen[0]) {
-      if (seen[0].status === "rejected") {
-        // Delete the old rejected reply so it can be re-scored
-        await db
-          .delete(repliesTable)
-          .where(eq(repliesTable.id, seen[0].id));
-        log?.info({ xReplyId: input.xReplyId }, "Deleted old rejected reply — allowing re-score");
-      } else {
-        return null; // valid reply — immutable
-      }
-    }
+    if (seen[0]) return null;
   }
 
   const participant = await upsertParticipant(
@@ -166,30 +140,6 @@ export async function ingestAndScoreReply(
     },
     log,
   );
-
-  // Store mining key hash on participant if provided and not already set.
-  if (input.miningKeyHash && !participant.miningKeyHash) {
-    await db
-      .update(participantsTable)
-      .set({ miningKeyHash: input.miningKeyHash })
-      .where(eq(participantsTable.id, participant.id));
-  }
-
-  // One mining key = one scored submission per block (anti-spam).
-  if (input.miningKeyHash) {
-    const keyDupe = await db
-      .select({ id: repliesTable.id })
-      .from(repliesTable)
-      .innerJoin(participantsTable, eq(repliesTable.participantId, participantsTable.id))
-      .where(
-        and(
-          eq(repliesTable.blockId, block.id),
-          eq(participantsTable.miningKeyHash, input.miningKeyHash),
-        ),
-      )
-      .limit(1);
-    if (keyDupe[0]) throw new DuplicateReplyError();
-  }
 
   // One scored reply per account per block.
   const prior = await db
@@ -299,8 +249,6 @@ export async function ingestAndScoreReply(
       status: validity.valid ? "valid" : "rejected",
       rejectionReason: validity.reason,
       flagged,
-      aiReplyText: ai.engagementReply ?? null,
-      aiXReplyStatus: ai.engagementReply ? "pending" : null,
     })
     .returning();
 
@@ -341,51 +289,6 @@ export async function ingestAndScoreReply(
       flagged,
     },
   });
-
-  // ── Hashpit system events ──────────────────────────────────────────────────
-  const blockChannel = `block:${block.id}`;
-  const now = new Date().toISOString();
-
-  // "@handle mined a submission" → block Hashpit
-  const mineMsg = {
-    id: randomUUID(),
-    channel: blockChannel,
-    handle: "@system",
-    body: `⚒️ @${participant.xHandle} mined a submission`,
-    kind: "system" as const,
-    miningKeyHash: null,
-    createdAt: now,
-  };
-  await db.insert(hashpitMessagesTable).values(mineMsg);
-  hashpitBus.emit(blockChannel, mineMsg);
-
-  // "AI scored @handle: XX signal" → block Hashpit (only for valid, non-flagged)
-  if (inserted[0].status === "valid" && !flagged) {
-    const scoreMsg = {
-      id: randomUUID(),
-      channel: blockChannel,
-      handle: "@system",
-      body: `🧠 AI scored @${participant.xHandle}: ${qualityScore} signal`,
-      kind: "system" as const,
-      miningKeyHash: null,
-      createdAt: now,
-    };
-    await db.insert(hashpitMessagesTable).values(scoreMsg);
-    hashpitBus.emit(blockChannel, scoreMsg);
-  }
-
-  // Cross-pollinate to Lobby
-  const lobbyMsg = {
-    id: randomUUID(),
-    channel: "lobby",
-    handle: "@system",
-    body: `⚒️ @${participant.xHandle} mined Block #${block.seq}`,
-    kind: "system" as const,
-    miningKeyHash: null,
-    createdAt: now,
-  };
-  await db.insert(hashpitMessagesTable).values(lobbyMsg);
-  hashpitBus.emit("lobby", lobbyMsg);
 
   return { reply: inserted[0], participant };
 }

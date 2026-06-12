@@ -78,10 +78,6 @@ export function toReplyDto(r: Reply, p: Participant) {
     status: r.status,
     rejectionReason: r.rejectionReason,
     flagged: r.flagged,
-    /** AI-generated on-site comment from the scoring call. */
-    aiReplyText: r.aiReplyText ?? null,
-    /** HITL status for the queued X reply: pending | posted | skipped */
-    aiXReplyStatus: r.aiXReplyStatus ?? null,
     createdAt: r.createdAt,
   };
 }

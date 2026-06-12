@@ -93,7 +93,6 @@ export async function scoreReply(
   const prompt = buildPrompt(replyText, ctx);
 
   try {
-    console.log(`[AiAS] Scoring reply (${replyText.length} chars) via ${url} model=${model}`);
     const res = await fetch(url, {
       method: "POST",
       headers: aiasHeaders(apiKey),
@@ -114,7 +113,6 @@ export async function scoreReply(
 
     if (!res.ok) {
       const body = await res.text();
-      console.error(`[AiAS] FAILED status=${res.status} body=${body.slice(0, 500)}`);
       log?.warn({ status: res.status, body }, "AiAS call failed; skipping");
       return null;
     }
@@ -125,14 +123,11 @@ export async function scoreReply(
     const text = data.choices?.[0]?.message?.content ?? "";
     const parsed = extractJson(text);
     if (!parsed) {
-      console.error(`[AiAS] Unparseable output: ${text.slice(0, 300)}`);
       log?.warn({ text }, "AiAS returned unparseable output; skipping");
       return null;
     }
-    console.log(`[AiAS] Score OK — quality=${parsed.quality ?? "?"}`);
     return normalizeScores(parsed);
   } catch (err) {
-    console.error(`[AiAS] Request error:`, err);
     log?.warn({ err }, "AiAS request error; skipping");
     return null;
   }
@@ -147,12 +142,6 @@ export interface BlockPostContext {
   requiredKeywords: string[];
   bonusKeywords: string[];
   sponsor?: string | null;
-  /**
-   * Admin-injectable content seed. When set it is appended verbatim to the
-   * system prompt so the operator can steer the AI toward a specific campaign,
-   * angle, or keyword cluster without touching code.
-   */
-  extraInstructions?: string;
 }
 
 const POST_MAX = 280;
@@ -174,13 +163,6 @@ export async function generateBlockPost(
   const url = resolveAiasUrl();
   const model = secret("AIAS_MODEL") ?? DEFAULT_MODEL;
 
-  const systemPrompt = [
-    "You are AiAS, the host of a transparency-first crypto mining gameshow that pays $ITC for high-quality original replies. Write a single engaging X (Twitter) post that opens a new 'mining block'. Keep it under 280 characters, pose a clear question/prompt on the topic, invite original replies, and add 1-2 relevant hashtags. No emojis spam, no financial promises, no giveaways. Output ONLY the post text.",
-    ctx.extraInstructions ? `OPERATOR SEED: ${ctx.extraInstructions}` : null,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-
   const res = await fetch(url, {
     method: "POST",
     headers: aiasHeaders(apiKey),
@@ -191,7 +173,8 @@ export async function generateBlockPost(
       messages: [
         {
           role: "system",
-          content: systemPrompt,
+          content:
+            "You are AiAS, the host of a transparency-first crypto mining gameshow that pays $ITC for high-quality original replies. Write a single engaging X (Twitter) post that opens a new 'mining block'. Keep it under 280 characters, pose a clear question/prompt on the topic, invite original replies, and add 1-2 relevant hashtags. No emojis spam, no financial promises, no giveaways. Output ONLY the post text.",
         },
         { role: "user", content: buildPostPrompt(ctx) },
       ],
@@ -212,14 +195,6 @@ export async function generateBlockPost(
   return clampPost(text);
 }
 
-/** Truncate a post to X's 280-char limit, breaking at word boundaries. */
-function clampPost(text: string, max = 280): string {
-  if (text.length <= max) return text;
-  const truncated = text.slice(0, max - 1);
-  const lastSpace = truncated.lastIndexOf(" ");
-  return (lastSpace > max * 0.5 ? truncated.slice(0, lastSpace) : truncated) + "…";
-}
-
 function buildPostPrompt(ctx: BlockPostContext): string {
   return `MINING BLOCK #${ctx.seq}
 TITLE: ${ctx.title}
@@ -229,6 +204,12 @@ BONUS KEYWORDS: ${ctx.bonusKeywords.join(", ") || "(none)"}
 ${ctx.sponsor ? `SPONSOR: ${ctx.sponsor}` : ""}
 
 Write the X post that opens this block.`;
+}
+
+function clampPost(text: string): string {
+  const oneLine = text.replace(/^["']|["']$/g, "").trim();
+  if (oneLine.length <= POST_MAX) return oneLine;
+  return `${oneLine.slice(0, POST_MAX - 1).trimEnd()}…`;
 }
 
 function buildPrompt(replyText: string, ctx: ScoreContext): string {
@@ -252,8 +233,7 @@ Return a JSON object with EXACTLY these fields:
   "specificity": 0-100,
   "isSpam": boolean,
   "isGenericFiller": boolean,
-  "rationale": "one short sentence",
-  "engagementReply": "1-3 sentence genuine on-site comment from the Kudos AI responding to this specific submission — reference their actual point, acknowledge their score tier, be honest but encouraging. No emojis. No financial promises."
+  "rationale": "one short sentence"
 }
 Score harshly. Generic praise, emoji-only, or off-topic replies should score low. Promotional/airdrop/giveaway content is spam.`;
 }
@@ -273,10 +253,6 @@ function clamp(n: number): number {
 }
 
 function normalizeScores(raw: Record<string, unknown>): AiScores {
-  const engagementReply =
-    typeof raw.engagementReply === "string" && raw.engagementReply.trim()
-      ? raw.engagementReply.trim()
-      : undefined;
   return {
     relevance: clamp(raw.relevance as number),
     originality: clamp(raw.originality as number),
@@ -286,6 +262,5 @@ function normalizeScores(raw: Record<string, unknown>): AiScores {
     isGenericFiller: Boolean(raw.isGenericFiller),
     rationale:
       typeof raw.rationale === "string" ? raw.rationale : "Assessed by AiAS.",
-    engagementReply,
   };
 }

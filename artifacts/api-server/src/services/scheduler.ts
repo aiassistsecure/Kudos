@@ -7,7 +7,7 @@ import { broadcastApprovedPayouts } from "./broadcast";
 import { generateBlockPost } from "./integrations/aias";
 import { postTweet } from "./integrations/xPost";
 import { settleBlock } from "./settlement";
-import { getNextTopic, getBlockGenSeed } from "./topicRotation";
+import { syncBlockReplies } from "./netrowsSync";
 import {
   getAutoPostEnabled,
   getMiningStartHeight,
@@ -16,23 +16,42 @@ import {
 } from "./settings";
 import { recordAudit } from "./audit";
 import { withLock } from "./lock";
-import { syncBlockReplies } from "./netrowsSync";
+
+/** Evergreen topics rotated through for auto-mined blocks. */
+const AUTO_TOPICS: Array<{
+  title: string;
+  topic: string;
+  requiredKeywords: string[];
+  bonusKeywords: string[];
+}> = [
+  {
+    title: "Why verifiable beats trusted in crypto custody",
+    topic: "on-chain transparency and verifiable custody",
+    requiredKeywords: ["transparency", "verifiable"],
+    bonusKeywords: ["merkle", "audit", "custody"],
+  },
+  {
+    title: "One human, one voice: sybil resistance that works",
+    topic: "proof of humanity and sybil resistance in rewards",
+    requiredKeywords: ["proof-of-humanity", "sybil"],
+    bonusKeywords: ["identity", "trust", "uniqueness"],
+  },
+  {
+    title: "Inverted hashpower: quality over reach",
+    topic: "inverted social hashpower weighting trust above reach",
+    requiredKeywords: ["quality", "trust"],
+    bonusKeywords: ["reach", "uniqueness"],
+  },
+  {
+    title: "Mining with words: rewarding original signal",
+    topic: "rewarding original high-signal contributions over spam",
+    requiredKeywords: ["original", "signal"],
+    bonusKeywords: ["spam", "filler", "substance"],
+  },
+];
 
 let running = false;
 let timer: NodeJS.Timeout | null = null;
-
-/**
- * Boot grace period: on a fresh server start we do NOT immediately settle an
- * open block that "looks" overdue. Autoscale hosts restart every few minutes;
- * without this guard every restart immediately settles the current block and
- * opens the next, creating the infinite loop of the same 2 blocks.
- * Grace window: 90 s (enough to survive a cold-start tick).
- */
-const BOOT_GRACE_MS = 90_000;
-const serverStartedAt = Date.now();
-
-/** Timestamp of the last settlement this process performed. */
-let lastSettledAt = 0;
 
 async function getOpenBlock(): Promise<Block | undefined> {
   const rows = await db
@@ -73,49 +92,30 @@ async function autoCreateBlock(log?: Logger): Promise<Block> {
   // 10% of the governance/treasury reward summed over the last 10 real blocks
   // (see services/rewardModel). Operators can still override a block's reward.
   const reward = await computeBlockReward(log);
-  // Rotate through the 24-entry topic pool; the index is persisted in
-  // app_settings so each topic is fully cycled before repeating.
-  const t = await getNextTopic();
-
-  try {
-    const rows = await db
-      .insert(blocksTable)
-      .values({
-        seq,
-        title: t.title,
-        topic: t.topic,
-        rewardItc: reward.rewardItc,
-        requiredKeywords: t.requiredKeywords,
-        bonusKeywords: t.bonusKeywords,
-        sponsor: "Interchained Treasury (auto-mined)",
-        status: "draft",
-      })
-      .returning();
-    log?.info(
-      {
-        seq,
-        rewardItc: reward.rewardItc,
-        governanceRewardSumItc: reward.governanceRewardSumItc,
-        sourceLive: reward.sourceLive,
-      },
-      "Auto-created mining block (governance-linked reward)",
-    );
-    return rows[0];
-  } catch (err: unknown) {
-    // UNIQUE constraint on seq — another process or a prior attempt already
-    // inserted this block. Fetch and return it instead of crashing.
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes("UNIQUE")) {
-      log?.warn({ seq }, "autoCreateBlock: seq already exists, fetching existing block");
-      const existing = await db
-        .select()
-        .from(blocksTable)
-        .where(eq(blocksTable.seq, seq))
-        .limit(1);
-      if (existing[0]) return existing[0];
-    }
-    throw err;
-  }
+  const t = AUTO_TOPICS[(seq - 1) % AUTO_TOPICS.length];
+  const rows = await db
+    .insert(blocksTable)
+    .values({
+      seq,
+      title: t.title,
+      topic: t.topic,
+      rewardItc: reward.rewardItc,
+      requiredKeywords: t.requiredKeywords,
+      bonusKeywords: t.bonusKeywords,
+      sponsor: "Interchained Treasury (auto-mined)",
+      status: "draft",
+    })
+    .returning();
+  log?.info(
+    {
+      seq,
+      rewardItc: reward.rewardItc,
+      governanceRewardSumItc: reward.governanceRewardSumItc,
+      sourceLive: reward.sourceLive,
+    },
+    "Auto-created mining block (governance-linked reward)",
+  );
+  return rows[0];
 }
 
 /**
@@ -158,9 +158,6 @@ export async function openBlockNow(block: Block, log?: Logger): Promise<Block> {
     const fresh = freshRows[0] ?? block;
 
     const autoPost = await getAutoPostEnabled();
-    // Fetch the admin-injectable content seed. When set, it steers the AiAS
-    // post generator toward a specific campaign or angle.
-    const blockGenSeed = await getBlockGenSeed();
     const content =
       fresh.postContent ??
       (await generateBlockPost(
@@ -171,19 +168,13 @@ export async function openBlockNow(block: Block, log?: Logger): Promise<Block> {
           requiredKeywords: fresh.requiredKeywords ?? [],
           bonusKeywords: fresh.bonusKeywords ?? [],
           sponsor: fresh.sponsor,
-          extraInstructions: blockGenSeed ?? undefined,
         },
         log,
       ));
 
-    const opensAtStr = fresh.opensAt ?? new Date().toISOString();
-    const cfg = emissionConfig();
-    const closesAtStr = new Date(new Date(opensAtStr).getTime() + cfg.blockIntervalMs).toISOString();
-
     const patch: Partial<typeof blocksTable.$inferInsert> = {
       status: "open",
-      opensAt: opensAtStr,
-      closesAt: closesAtStr,
+      opensAt: fresh.opensAt ?? new Date().toISOString(),
       postContent: content,
     };
 
@@ -244,74 +235,40 @@ export async function openBlockNow(block: Block, log?: Logger): Promise<Block> {
   });
 }
 
-async function settleOverdueOpen(log?: Logger): Promise<boolean> {
+async function settleOverdueOpen(log?: Logger): Promise<void> {
   // Respect the master reward pause: when rewards are off, blocks do not solve
   // (the countdown freezes for everyone) and nothing settles.
-  if (!(await getRewardsEnabled())) return false;
-
-  // Boot grace period: never immediately settle on a fresh server start.
-  // Autoscale hosts restart frequently; without this every cold-start tick
-  // would settle the current open block before any real mining can happen.
-  const uptime = Date.now() - serverStartedAt;
-  if (uptime < BOOT_GRACE_MS) {
-    log?.info(
-      { uptimeMs: uptime, graceMs: BOOT_GRACE_MS },
-      "Scheduler: skipping settle — still within boot grace period",
-    );
-    return false;
-  }
-
+  if (!(await getRewardsEnabled())) return;
   const open = await getOpenBlock();
-  if (!open || !open.opensAt) return false;
+  if (!open || !open.opensAt) return;
   const cfg = emissionConfig();
   const age = Date.now() - new Date(open.opensAt).getTime();
-  if (age < cfg.blockIntervalMs) return false;
+  if (age < cfg.blockIntervalMs) return;
 
   const closed = await db
     .update(blocksTable)
     .set({ status: "closed", closesAt: new Date().toISOString() })
     .where(eq(blocksTable.id, open.id))
     .returning();
-  try {
-    await settleBlock(closed[0], log);
-    lastSettledAt = Date.now();
-    log?.info({ seq: open.seq }, "Block solved (settled) on schedule");
-    await maybeAutoBroadcast(closed[0], log);
-  } catch (err) {
-    // Settlement failed (e.g. ITC node unreachable). The block is already
-    // closed — mark it as needing re-settlement but don't block the next
-    // tick from opening a new block.
-    log?.error({ err, seq: open.seq }, "Settlement failed — block closed but not settled. Will retry next tick.");
-  }
-  return true;
+  await settleBlock(closed[0], log);
+  log?.info({ seq: open.seq }, "Block solved (settled) on schedule");
+  await maybeAutoBroadcast(closed[0], log);
 }
 
-/** One scheduler cycle: settle overdue open -> open next. */
+/** One scheduler cycle: settle overdue open -> open next -> sync replies. */
 export async function runTickOnce(log?: Logger): Promise<void> {
-  const didSettle = await settleOverdueOpen(log);
+  await settleOverdueOpen(log);
 
-  // If we just settled this tick, skip opening the next block immediately.
-  // The following tick will pick it up. This prevents the settle→open→settle
-  // loop that spins the same two blocks forever on autoscale restarts.
-  if (didSettle) {
-    log?.info("Scheduler: block settled this tick — deferring next open to next interval");
-    return;
-  }
-
-  // Re-read under the same process flow to close the race window between the
-  // open-block check and the actual insert.
   let current = await getOpenBlock();
   if (!current) {
     const next = (await getNextDraft()) ?? (await autoCreateBlock(log));
-    // Guard: another process may have opened a block between the check above
-    // and here. Re-verify before opening.
-    const stillNoOpen = await getOpenBlock();
-    if (!stillNoOpen) {
-      current = await openBlockNow(next, log);
-    } else {
-      log?.info({ seq: stillNoOpen.seq }, "Scheduler: open block appeared before open attempt — skipping");
-      current = stillNoOpen;
-    }
+    current = await openBlockNow(next, log);
+  }
+
+  try {
+    await syncBlockReplies(current, "scheduler", log);
+  } catch (err) {
+    log?.warn({ err }, "Scheduler sync step failed");
   }
 }
 
@@ -322,12 +279,12 @@ export function startScheduler(log?: Logger): void {
     return;
   }
   if (timer) return;
-  const checkInterval = Math.min(15_000, cfg.blockIntervalMs);
+
+  const interval = cfg.blockIntervalMs;
   const reward = rewardModelConfig();
   log?.info(
     {
-      checkIntervalMs: checkInterval,
-      blockIntervalMs: cfg.blockIntervalMs,
+      intervalMs: interval,
       rewardModel: "governance-linked",
       governanceBlocks: reward.governanceBlocks,
       governanceSharePct: reward.governanceShare * 100,
@@ -344,7 +301,7 @@ export function startScheduler(log?: Logger): void {
       .finally(() => {
         running = false;
       });
-  }, checkInterval);
+  }, interval);
   // Do not block process exit on the scheduler.
   timer.unref?.();
 }

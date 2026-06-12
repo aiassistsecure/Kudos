@@ -1,22 +1,10 @@
 import { createHash } from "node:crypto";
 
 /**
- * Scoring engine for the social-hashpower model.
- *
- * social_hashpower = quality_score × trust_weight × uniqueness × reach_factor
- *
- * ─── Canonical weight intent ──────────────────────────────────────────────────
- *   Quality   45%  — relevance / correctness / specificity / originality
- *   Uniqueness 25% — Jaccard near-duplicate detection (0..1 multiplier)
- *   Trust     20%  — PoH tier + account age + verified + behavior score
- *   Reach     10%  — follower-count bonus, trust-gated, max +30% hashpower
- *
- * Reach is intentionally the SMALLEST factor. A small account with a great
- * reply can still mine real hashpower. Reach should help, not decide.
- *
- * Trust/identity is the primary Sybil defense. It is the largest single lever
- * because it is the hardest to fake at scale.
- * ─────────────────────────────────────────────────────────────────────────────
+ * Scoring engine for the INVERTED social-hashpower model:
+ *   social_hashpower = quality_score x trust_weight x uniqueness x reach_factor
+ * Trust/identity dominates, semantic quality is second, follower reach is the
+ * smallest, gated lever.
  */
 
 export interface AiScores {
@@ -27,8 +15,6 @@ export interface AiScores {
   isSpam: boolean;
   isGenericFiller: boolean;
   rationale: string;
-  /** On-site AI comment generated in the same call — never posted automatically to X. */
-  engagementReply?: string;
 }
 
 export interface TrustInputs {
@@ -136,19 +122,6 @@ export function computeQualityScore(ai: AiScores): number {
   return Math.round(clamp(q, 0, 100) * 100) / 100;
 }
 
-/**
- * social_hashpower = quality × trust × uniqueness × reach
- *
- * The factors are multiplicative, which means a low score in any dimension
- * penalizes the whole. A banned (trust=0) or spam (quality=0) reply gets HP=0
- * regardless of follower count.
- *
- * Intended contribution per factor:
- *   quality_score  → primary driver (AI sub-scores weighted ~45%)
- *   trust_weight   → identity defense (~20%, large Sybil gate)
- *   uniqueness     → originality reward (~25%, Jaccard-based)
- *   reach_factor   → follower bonus (~10%, trust-gated, max +30%)
- */
 export function computeSocialHashpower(params: {
   qualityScore: number;
   trustWeight: number;
@@ -225,10 +198,10 @@ export function simulateAiScores(
   const uniqueRatio = tokens.length / Math.max(wordCount, 1);
   const specificity = clamp(
     20 +
-    Math.min(wordCount, 60) * 1.0 +
-    (hasNumbers ? 12 : 0) +
-    (hasLink ? 8 : 0) +
-    uniqueRatio * 20,
+      Math.min(wordCount, 60) * 1.0 +
+      (hasNumbers ? 12 : 0) +
+      (hasLink ? 8 : 0) +
+      uniqueRatio * 20,
     0,
     100,
   );
