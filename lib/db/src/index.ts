@@ -16,16 +16,6 @@ CREATE TABLE IF NOT EXISTS participants (
   id TEXT PRIMARY KEY,
   x_user_id TEXT NOT NULL UNIQUE,
   x_handle TEXT NOT NULL,
-  display_name TEXT,
-  avatar_url TEXT,
-  website_url TEXT,
-  github_handle TEXT,
-  farcaster_handle TEXT,
-  telegram_handle TEXT,
-  x_bio TEXT,
-  kudos_bio TEXT,
-  enriched_at TEXT,
-  mining_key_hash TEXT,
   account_created TEXT,
   followers_count INTEGER NOT NULL DEFAULT 0,
   verified INTEGER NOT NULL DEFAULT 0,
@@ -83,9 +73,6 @@ CREATE TABLE IF NOT EXISTS replies (
   status TEXT NOT NULL DEFAULT 'ingested',
   rejection_reason TEXT,
   flagged INTEGER NOT NULL DEFAULT 0,
-  ai_reply_text TEXT,
-  ai_x_reply_status TEXT,
-  ai_x_reply_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   UNIQUE (block_id, participant_id)
@@ -195,54 +182,7 @@ CREATE TABLE IF NOT EXISTS blast_runs (
   started_at TEXT NOT NULL,
   completed_at TEXT
 );
-
-CREATE TABLE IF NOT EXISTS hashpit_messages (
-  id TEXT PRIMARY KEY,
-  channel TEXT NOT NULL,
-  mining_key_hash TEXT,
-  handle TEXT NOT NULL,
-  kind TEXT NOT NULL DEFAULT 'chat',
-  body TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_hashpit_channel ON hashpit_messages(channel, created_at);
-
-CREATE TABLE IF NOT EXISTS topics (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  topic TEXT NOT NULL DEFAULT '',
-  required_keywords TEXT NOT NULL DEFAULT '[]',
-  bonus_keywords TEXT NOT NULL DEFAULT '[]',
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  active INTEGER NOT NULL DEFAULT 1,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS messages (
-  id TEXT PRIMARY KEY,
-  from_hash TEXT NOT NULL,
-  to_hash TEXT NOT NULL,
-  from_handle TEXT NOT NULL,
-  to_handle TEXT NOT NULL,
-  body TEXT NOT NULL,
-  read INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_messages_inbox ON messages(to_hash, created_at);
-CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(from_hash, to_hash, created_at);
 `);
-
-// ── Safe migrations for existing databases ────────────────────────────────────
-const migrations = [
-  `ALTER TABLE participants ADD COLUMN website_url TEXT`,
-  `ALTER TABLE participants ADD COLUMN github_handle TEXT`,
-  `ALTER TABLE participants ADD COLUMN farcaster_handle TEXT`,
-  `ALTER TABLE participants ADD COLUMN telegram_handle TEXT`,
-];
-for (const sql of migrations) {
-  try { sqlite.exec(sql); } catch { /* column already exists */ }
-}
 
 export const db = drizzle(sqlite, { schema });
 

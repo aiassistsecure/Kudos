@@ -84,7 +84,6 @@ export const GetSettingsResponse = zod.object({
   "rewardsEnabled": zod.boolean(),
   "blastEnabled": zod.boolean(),
   "replySyncEnabled": zod.boolean(),
-  "blockGenSeed": zod.string(),
   "dataSource": zod.string(),
   "postingMode": zod.string(),
   "contentMode": zod.string(),
@@ -109,8 +108,7 @@ export const UpdateSettingsBody = zod.object({
   "miningStartHeight": zod.number().min(updateSettingsBodyMiningStartHeightMin).optional(),
   "rewardsEnabled": zod.boolean().optional(),
   "blastEnabled": zod.boolean().optional(),
-  "replySyncEnabled": zod.boolean().optional(),
-  "blockGenSeed": zod.string().optional(),
+  "replySyncEnabled": zod.boolean().optional()
 })
 
 export const UpdateSettingsResponse = zod.object({
@@ -119,7 +117,6 @@ export const UpdateSettingsResponse = zod.object({
   "rewardsEnabled": zod.boolean(),
   "blastEnabled": zod.boolean(),
   "replySyncEnabled": zod.boolean(),
-  "blockGenSeed": zod.string(),
   "dataSource": zod.string(),
   "postingMode": zod.string(),
   "contentMode": zod.string(),
@@ -252,8 +249,6 @@ export const GetBlockResponse = zod.object({
   "status": zod.string(),
   "rejectionReason": zod.string().nullish(),
   "flagged": zod.boolean(),
-  "aiReplyText": zod.string().nullish(),
-  "aiXReplyStatus": zod.string().nullish(),
   "createdAt": zod.string()
 })),
   "leaderboard": zod.array(zod.object({
@@ -530,8 +525,6 @@ export const ListRepliesResponseItem = zod.object({
   "status": zod.string(),
   "rejectionReason": zod.string().nullish(),
   "flagged": zod.boolean(),
-  "aiReplyText": zod.string().nullish(),
-  "aiXReplyStatus": zod.string().nullish(),
   "createdAt": zod.string()
 })
 export const ListRepliesResponse = zod.array(ListRepliesResponseItem)
@@ -549,14 +542,8 @@ export const SubmitReplyParams = zod.object({
 
 
 export const SubmitReplyBody = zod.object({
-  /** X handle of the submitting miner (verified server-side via NetRows). */
   "handle": zod.string().min(1),
-  /** The full X post URL they replied with — backend extracts tweet text. */
-  "xPostUrl": zod.string().url().optional(),
-  /** Legacy: raw reply text (admin/test submissions). Ignored if xPostUrl is set. */
-  "replyText": zod.string().min(1).optional(),
-  /** SHA-256 of the client mining key — stored for duplicate-per-block prevention. */
-  "miningKeyHash": zod.string().optional(),
+  "replyText": zod.string().min(1),
   "followersCount": zod.number().optional(),
   "verified": zod.boolean().optional(),
   "accountAgeDays": zod.number().optional()
@@ -596,27 +583,6 @@ export const GetParticipantResponse = zod.object({
   "id": zod.string(),
   "xUserId": zod.string().optional(),
   "xHandle": zod.string(),
-  "displayName": zod.string().nullish(),
-  "avatarUrl": zod.string().nullish(),
-  "kudosBio": zod.string().nullish(),
-  "tier": zod.string().optional(),
-  "tierLabel": zod.string().optional(),
-  "tierIcon": zod.string().optional(),
-  "tierColor": zod.string().optional(),
-  "tierProgress": zod.number().optional(),
-  "level": zod.number().optional(),
-  "levelProgress": zod.number().optional(),
-  "totalHashpower": zod.number().optional(),
-  "hashrate": zod.string().optional(),
-  "badges": zod.array(zod.object({
-  "id": zod.string(),
-  "label": zod.string(),
-  "description": zod.string(),
-  "icon": zod.string(),
-  "rarity": zod.string()
-})).optional(),
-  "validReplyCount": zod.number().optional(),
-  "blocksMinedCount": zod.number().optional(),
   "accountCreated": zod.string().nullish(),
   "followersCount": zod.number(),
   "verified": zod.boolean(),

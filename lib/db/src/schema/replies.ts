@@ -26,17 +26,6 @@ export const repliesTable = sqliteTable("replies", {
   status: text("status").notNull().default("ingested"),
   rejectionReason: text("rejection_reason"),
   flagged: integer("flagged", { mode: "boolean" }).notNull().default(false),
-  /** AiAS-generated on-site comment + HITL X reply queue. */
-  aiReplyText: text("ai_reply_text"),
-  /**
-   * HITL status for the AI-drafted X reply:
-   *   pending  — generated, awaiting operator review
-   *   posted   — operator approved and @interchained tweeted it
-   *   skipped  — operator dismissed without posting
-   */
-  aiXReplyStatus: text("ai_x_reply_status"),
-  /** Tweet id of the reply posted to X after operator approval. */
-  aiXReplyId: text("ai_x_reply_id"),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),

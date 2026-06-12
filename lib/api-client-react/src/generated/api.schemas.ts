@@ -103,8 +103,6 @@ export interface Settings {
   /** @nullable */
   governanceRewardSumItc: number | null;
   rewardSourceLive: boolean;
-  /** Campaign steering prompt appended to every AiAS block-post call. */
-  blockGenSeed?: string | null;
 }
 
 export interface ChainBlock {
@@ -144,8 +142,6 @@ export interface SettingsInput {
   rewardsEnabled?: boolean;
   blastEnabled?: boolean;
   replySyncEnabled?: boolean;
-  /** Campaign steering prompt appended to every AI block-post generation call. */
-  blockGenSeed?: string;
 }
 
 export interface ImportResult {
@@ -188,10 +184,6 @@ export interface Reply {
   /** @nullable */
   rejectionReason?: string | null;
   flagged: boolean;
-  /** AI-generated on-site engagement comment (from single scoring call). */
-  aiReplyText?: string | null;
-  /** HITL X-post status: pending | posted | skipped */
-  aiXReplyStatus?: string | null;
   createdAt: string;
 }
 
@@ -254,37 +246,10 @@ export interface LifecycleAction {
   action: string;
 }
 
-export interface BadgeItem {
-  id: string;
-  label: string;
-  description: string;
-  icon: string;
-  rarity: string;
-}
-
 export interface Participant {
   id: string;
   xUserId?: string;
   xHandle: string;
-  /** @nullable */
-  displayName?: string | null;
-  /** @nullable */
-  avatarUrl?: string | null;
-  /** @nullable */
-  kudosBio?: string | null;
-  /** Gamification tier id e.g. prospector, miner, senior, veteran, hashlord, legend */
-  tier?: string;
-  tierLabel?: string;
-  tierIcon?: string;
-  tierColor?: string;
-  tierProgress?: number;
-  level?: number;
-  levelProgress?: number;
-  totalHashpower?: number;
-  hashrate?: string;
-  badges?: BadgeItem[];
-  validReplyCount?: number;
-  blocksMinedCount?: number;
   /** @nullable */
   accountCreated?: string | null;
   followersCount: number;
